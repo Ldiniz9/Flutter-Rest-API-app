@@ -154,11 +154,13 @@ class _TelaInicialState extends ConsumerState<TelaInicial> {
             icon: const Icon(Icons.bookmark),
             label: const Text('Salvos'),
             onPressed: () {
+              if (urlAtual != null) {
+                ref.read(visualizacaoRequestProvider.notifier).limparVisualizacao(urlAtual!);
+              }
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const TelaRepositoriosSalvos()),
               );
-              ref.read(visualizacaoRequestProvider.notifier).limparVisualizacao(urlController.text);
             },
             style: TextButton.styleFrom(
               foregroundColor: Colors.white,
