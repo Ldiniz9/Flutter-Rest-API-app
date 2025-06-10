@@ -56,6 +56,10 @@ class VisualizacaoRequestNotifier extends StateNotifier<Map<String, AsyncValue<S
   VisualizacaoRequestNotifier(this.dio) : super({});
   
   Future<void> fazerRequisicaoVisualizacao(String url) async {
+    if (!url.startsWith('https://api.github.com')) {
+      url = 'https://api.github.com/${url.startsWith('/') ? url.substring(1) : url}';
+    }
+    
     state = {
       ...state,
       url: const AsyncValue.loading(),
@@ -67,7 +71,7 @@ class VisualizacaoRequestNotifier extends StateNotifier<Map<String, AsyncValue<S
         options: Options(
           headers: {
             'Accept': 'application/vnd.github.v3+json',
-            'Authorization': 'colocar aqui a chave de autorização',
+            'Authorization': 'adicionar aqui a chave de autorização do github',
           },
         ),
       );
@@ -93,43 +97,6 @@ class VisualizacaoRequestNotifier extends StateNotifier<Map<String, AsyncValue<S
   
   AsyncValue<String?> getEstado(String url) {
     return state[url] ?? const AsyncValue.data(null);
-  }
-}
-
-final githubRequestProvider = StateNotifierProvider<GithubRequestNotifier, AsyncValue<String?>>((ref) {
-  final dio = ref.watch(dioProvider);
-  return GithubRequestNotifier(dio);
-});
-
-class GithubRequestNotifier extends StateNotifier<AsyncValue<String?>> {
-  final Dio dio;
-  
-  GithubRequestNotifier(this.dio) : super(const AsyncValue.data(null));
-  
-  Future<void> fazerRequisicao(String url) async {
-    state = const AsyncValue.loading();
-    
-    try {
-      if (!url.startsWith('https://api.github.com')) {
-        url = 'https://api.github.com/${url.startsWith('/') ? url.substring(1) : url}';
-      }
-      
-      final response = await dio.get(
-        url,
-        options: Options(
-          headers: {
-            'Accept': 'application/vnd.github.v3+json',
-            'Authorization': 'colocar aqui a chave de autorização',
-          },
-        ),
-      );
-      
-      final prettyJson = const JsonEncoder.withIndent('  ').convert(response.data);
-      state = AsyncValue.data(prettyJson);
-      
-    } on DioException catch (e) {
-      state = AsyncValue.error('Erro na requisição: ${e.message}', StackTrace.current);
-    }
   }
 }
 
@@ -170,28 +137,32 @@ class TelaInicial extends ConsumerStatefulWidget {
 
 class _TelaInicialState extends ConsumerState<TelaInicial> {
   final TextEditingController urlController = TextEditingController();
+  String? urlAtual;
   
   @override
   Widget build(BuildContext context) {
-    final requestState = ref.watch(githubRequestProvider);
+    final visualizacaoState = ref.watch(visualizacaoRequestProvider);
+    final estadoAtual = urlAtual != null 
+        ? visualizacaoState[urlAtual!] ?? const AsyncValue.data(null)
+        : const AsyncValue.data(null);
     
     return Scaffold(
       appBar: AppBar(
         title: const Text('Busca de Repositório Git'),
         actions: [
-        TextButton.icon(
-        icon: const Icon(Icons.bookmark),
-        label: const Text('Salvos'),
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const TelaRepositoriosSalvos()),
-          );
-          ref.read(githubRequestProvider.notifier).state = const AsyncValue.data(null);
-        },
-        style: TextButton.styleFrom(
-          foregroundColor: Colors.white,
-        ),
+          TextButton.icon(
+            icon: const Icon(Icons.bookmark),
+            label: const Text('Salvos'),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const TelaRepositoriosSalvos()),
+              );
+              ref.read(visualizacaoRequestProvider.notifier).state = {};
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
@@ -213,13 +184,24 @@ class _TelaInicialState extends ConsumerState<TelaInicial> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: () => ref.read(githubRequestProvider.notifier).fazerRequisicao(urlController.text),
+                onPressed: () {
+                  String url = urlController.text;
+                  if (!url.startsWith('https://api.github.com')) {
+                    url = 'https://api.github.com/${url.startsWith('/') ? url.substring(1) : url}';
+                  }
+                  
+                  setState(() {
+                    urlAtual = url;
+                  });
+                  
+                  ref.read(visualizacaoRequestProvider.notifier).fazerRequisicaoVisualizacao(url);
+                },
                 child: const Text('Buscar da API do GitHub'),
               ),
               const SizedBox(height: 16),
 
               Expanded(
-                child: requestState.when(
+                child: estadoAtual.when(
                   data: (data) {
                     if (data == null) return const Center(child: Text(''));
                     
@@ -239,23 +221,21 @@ class _TelaInicialState extends ConsumerState<TelaInicial> {
                         ),
                         const SizedBox(height: 16),
                         ElevatedButton.icon(
-                        onPressed: () {
-                          String salvarUrl = urlController.text;
-                          if (!salvarUrl.startsWith('https://api.github.com')) {
-                            salvarUrl = 'https://api.github.com/${salvarUrl.startsWith('/') ? salvarUrl.substring(1) : salvarUrl}';
-                          }
-                          
-                          final success = ref.read(repositoriosSalvosProvider.notifier)
-                              .salvarRepositorio(salvarUrl);
-                            
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(
-                                success 
-                                  ? 'Repositório salvo com sucesso!' 
-                                  : 'Este repositório já está salvo'
-                              )),
-                            );
+                          onPressed: () {
+                            if (urlAtual != null) {
+                              final success = ref.read(repositoriosSalvosProvider.notifier)
+                                  .salvarRepositorio(urlAtual!);
+                                
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(
+                                    success 
+                                      ? 'Repositório salvo com sucesso!' 
+                                      : 'Este repositório já está salvo'
+                                  )),
+                                );
+                            }
                           },
+                          icon: const Icon(Icons.bookmark_add),
                           label: const Text('Salvar este repositório'),
                         ),
                       ],
@@ -292,21 +272,28 @@ class _TelaRepositoriosSalvosState extends ConsumerState<TelaRepositoriosSalvos>
     
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Repositórios Salvos'),
-        actions: [
-          if (urlExpandida != null)
-            IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () {
-                setState(() {
-                  urlExpandida = null;
-                });
-                if (urlExpandida != null) {
-                  ref.read(visualizacaoRequestProvider.notifier).limparVisualizacao(urlExpandida!);
-                }
-              },
-            ),
-        ],
+      title: const Text('Repositórios Salvos'),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () {
+        Navigator.pop(context);
+        ref.read(visualizacaoRequestProvider.notifier).state = {};
+        },
+      ),
+      actions: [
+        if (urlExpandida != null)
+        IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () {
+          setState(() {
+            urlExpandida = null;
+          });
+          if (urlExpandida != null) {
+            ref.read(visualizacaoRequestProvider.notifier).limparVisualizacao(urlExpandida!);
+          }
+          },
+        ),
+      ],
       ),
       body: repositorios.isEmpty
         ? const Center(child: Text('Nenhum repositório salvo ainda.'))
