@@ -158,7 +158,7 @@ class _TelaInicialState extends ConsumerState<TelaInicial> {
                 context,
                 MaterialPageRoute(builder: (context) => const TelaRepositoriosSalvos()),
               );
-              ref.read(visualizacaoRequestProvider.notifier).state = {};
+              ref.read(visualizacaoRequestProvider.notifier).limparVisualizacao(urlController.text);
             },
             style: TextButton.styleFrom(
               foregroundColor: Colors.white,
@@ -277,7 +277,7 @@ class _TelaRepositoriosSalvosState extends ConsumerState<TelaRepositoriosSalvos>
         icon: const Icon(Icons.arrow_back),
         onPressed: () {
         Navigator.pop(context);
-        ref.read(visualizacaoRequestProvider.notifier).state = {};
+          ref.read(visualizacaoRequestProvider.notifier).limparVisualizacao(urlExpandida!);
         },
       ),
       actions: [
