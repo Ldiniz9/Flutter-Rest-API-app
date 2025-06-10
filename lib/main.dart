@@ -183,6 +183,18 @@ class _TelaInicialState extends ConsumerState<TelaInicial> {
                   ),
                   prefixText: 'https://api.github.com/',
                 ),
+                onSubmitted: (value) {
+                  String url = value;
+                  if (!url.startsWith('https://api.github.com')) {
+                    url = 'https://api.github.com/${url.startsWith('/') ? url.substring(1) : url}';
+                  }
+                  
+                  setState(() {
+                    urlAtual = url;
+                  });
+                  
+                  ref.read(visualizacaoRequestProvider.notifier).fazerRequisicaoVisualizacao(url);
+                },
               ),
               const SizedBox(height: 16),
               ElevatedButton(
